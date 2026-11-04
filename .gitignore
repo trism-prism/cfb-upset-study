@@ -4,3 +4,5 @@ data/
 __pycache__/
 *.pyc
 .pytest_cache/
+presentation/node_modules/
+presentation/_qa/

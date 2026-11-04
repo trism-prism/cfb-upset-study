@@ -37,4 +37,4 @@ Every number below comes from the committed study output. The table after the bu
 ## Talking points
 - **How the leak was caught: by asking when each feature was knowable.** End-of-season SP+ is computed from the games being predicted. The pipeline used prior-season ratings from the start, and a controlled rerun later measured what the leak would have done. Tell it that way; the order of events is the point of the story.
 - **The bug corrupted the evaluation, not the model.** On the same 1,587 FBS test games, models trained with and without the leaked rows score identically (Brier difference −0.00003, CI [−0.00017, +0.00013]). What changed was the dataset being scored, and with it the conclusions.
-- **The market's Brier of 0.177 sits at the simulated "oracle" floor** (mean 0.183, range 0.174–0.191), the score a forecaster would get if it knew the true probabilities.
+- **The market's Brier of 0.177 sits inside the simulated oracle range** (mean 0.182, range 0.174–0.191). That is the score a forecaster that knew the true probabilities would get if outcomes were the line plus noise, so little room is left for improvement.

@@ -122,7 +122,7 @@ The randomness hypothesis is tested directly by simulating 10,000 alternate vers
 1. **Outcome redraw.** Each game's winner is drawn as a coin flip weighted by the spread-only model's probability.
 2. **Margin redraw.** Each game's margin is drawn as the market's expected margin plus Normal(0, σ), where σ = 15.43 points is the training SD of margin around the line.
 
-Each trial records the number of upsets, the Brier score and the residual SD. The observed values are then placed in those distributions. The margin model also gives an **oracle Brier**: the score a forecaster with the exact true probabilities would get. This is the floor that randomness alone sets.
+Each trial records the number of upsets, the Brier score and the residual SD. The observed values are then placed in those distributions. The margin model also gives an **oracle Brier**: the score a forecaster with the exact true probabilities would get if outcomes really were the line plus noise. It shows how low a Brier score chance alone allows.
 
 # 4. Results
 
@@ -159,7 +159,7 @@ The out-of-sample test is decisive:
 
 Brier(full) − Brier(spread) = +0.0010, with a cluster-bootstrap 95% CI of [−0.0010, +0.0028].
 
-The full model is *slightly worse* out of sample, and the interval includes zero. The marginal in-sample signal does not survive contact with new seasons, which is the usual signature of overfitting noise. **The market spread alone captures essentially all of the predictive signal** available in these public features.
+The full model is *slightly worse* out of sample, and the interval includes zero. The marginal in-sample signal does not survive contact with new seasons, which is the usual signature of overfitting noise. **The market spread alone captures nearly all of the predictive signal** available in these public features.
 
 ## 4.4 H3: the market is well calibrated
 
@@ -176,7 +176,7 @@ Figure 2. Reliability diagram for the test seasons. Both models track the diagon
 
 ![Upset rate by size of spread.](../results/figures/upset_rate_by_spread.png)
 
-Figure 3. Observed against predicted upset rate by size of spread. Close games (spread under 3) are near coin flips, with 51% upsets, and upsets fall steadily as the spread grows. The largest gap, in the 14–21 bucket (7% observed vs 14% predicted), sits within sampling noise for 239 games.
+Figure 3. Observed against predicted upset rate by size of spread. Close games (spread under 3) are near coin flips, with 51% upsets, and upsets fall steadily as the spread grows. The one notable gap is the 14–21 bucket: 7% observed against 14% predicted (n = 239), about 3 standard errors. In these two seasons, double-digit underdogs pulled off fewer upsets than the line implied. Taken across all ten probability bins, the Hosmer–Lemeshow test does not reject calibration (p = 0.062), so this reads as one bucket to watch, not a systematic bias.
 
 # 5. Monte Carlo validation
 
@@ -186,7 +186,7 @@ Figure 3. Observed against predicted upset rate by size of spread. Close games (
 | Upsets (margin redraw) | 444 | 444.7 | 411 – 478 | 49.5 | 0.99 |
 | Residual SD (points) | 15.30 | 15.43 | 14.89 – 15.97 | 31.6 | 0.63 |
 | Brier, spread model | 0.1767 | 0.1817 | 0.1732 – 0.1905 | 12.9 | 0.26 |
-| Oracle Brier (randomness floor) | — | 0.1825 | 0.1741 – 0.1910 | — | — |
+| Oracle Brier (margin model) | — | 0.1825 | 0.1741 – 0.1910 | — | — |
 
 ![Simulated against observed upset counts.](../results/figures/mc_upsets.png)
 
@@ -194,12 +194,12 @@ Figure 4. The 444 upsets observed in 2023–24 sit in the middle of 10,000 simul
 
 ![Simulated against observed Brier scores.](../results/figures/mc_brier.png)
 
-Figure 5. Left: the market's actual Brier is well within the simulated range. Right: it is as good as the oracle forecaster's, whose probabilities are exactly right by construction.
+Figure 5. Left: the market's actual Brier is well within the simulated range. Right: it falls inside the range of the oracle forecaster's, whose probabilities are exactly right by construction under the margin model.
 
 Every observed statistic falls comfortably inside its simulated distribution, with all p-values at least 0.26.
 - **The upset count is ordinary.** It is exactly what a world of "market line plus random noise" produces.
 - **The residual SD matches its simulated value.** The 15.3-point SD left after the spread is what that randomness alone generates, with no extra structure left to explain.
-- **The market already scores at the oracle's level.** The oracle, which knows the true probabilities, averages a Brier of 0.183 against outcomes like these. The market's 0.177 is already at that floor, so no model, however clever, can expect to do meaningfully better.
+- **The market scores within the range of the oracle's.** In a line-plus-noise world, even a forecaster that knew the true probabilities would expect a Brier of about 0.182 (95% range 0.174–0.191). The market's 0.177 sits inside that range, which leaves little room for any forecaster to improve. (The oracle comes from the margin model and the market's score from the spread-only logit, so this is a comparison of ranges, not an exact floor.)
 
 **The residual variance is consistent with irreducible randomness.**
 
@@ -207,7 +207,7 @@ Every observed statistic falls comfortably inside its simulated distribution, wi
 
 The four hypotheses agree. The closing spread strongly predicts winners (H1), forecasts margins without bias (H4) and is calibrated (H3). Public features that seem to matter, such as team strength, home field, conference play, timing and scoring environment, add nothing out of sample (H2). The 10,000-trial simulation then closes the remaining gap: the scatter of outcomes around the line is the size and shape that chance alone produces.
 
-**Upsets are therefore not anomalies that a better model could foresee; they are the expected tail of a well-priced distribution.** With a 15-point standard deviation around the line, a 7-point underdog wins about 30% of the time, every season, by design. The 2024 season's 29% upset rate was not a sign that something had changed. It is within the simulated range.
+**The evidence is consistent with upsets being the expected tail of a well-priced distribution, not anomalies a better model could foresee.** With about 15 points of spread around the line, a 7-point underdog still wins roughly 30% of the time; the spread-only model puts it at 31%. Across the two test seasons, the 444 upsets sit in the middle of the simulated range.
 
 A methodological lesson matters as much as the result. The biggest threats to a valid conclusion came from the data, not from the choice of model:
 - **The look-ahead leak.** A rating that looks like a pregame feature but is computed from the season's results would have turned "the market cannot be beaten" into "our model beats the market by 14%". Avoiding it took a question asked before any code ran: *when was each feature knowable?*
@@ -219,12 +219,12 @@ Both effects were measured with controlled reruns, so their impact is a number r
 
 - **Closing-line definition.** The API's `spread` field is taken to be the closing line; it is reported separately from `spreadOpen`. Timestamps are not available to verify this.
 - **Small test-week sample.** The test set spans only 31 season-weeks, so the cluster-bootstrap interval is wide. Effects smaller than about 0.002 Brier cannot be ruled out.
-- **Public features only.** Injury reports, weather, line movement and betting splits were not available. A richer information set could carry some edge, but it would have to beat a market that already reaches the randomness floor.
+- **Public features only.** Injury reports, weather, line movement and betting splits were not available. A richer information set could carry some edge, but it would have to beat a market whose score already sits inside the range chance alone produces.
 - **Scope.** Results describe FBS-vs-FBS games from 2019 and 2021–2024. FCS matchups and earlier eras were not tested.
 
 # 8. Conclusion
 
-Across 3,900 FBS games, college football outcomes are predictable, and the betting market already predicts them about as well as the evidence allows. The closing spread cuts the naive forecast error by 27%. No combination of public features improves on it out of sample, and a 10,000-trial Monte Carlo shows that what remains (who wins the close games, which underdog pulls it off) is indistinguishable from irreducible randomness.
+Across 3,900 FBS games, college football outcomes are predictable, and the betting market already predicts them about as well as the evidence allows. The closing spread cuts the naive forecast error by 27%. None of the five extra public features improves on it out of sample, and a 10,000-trial Monte Carlo shows that what remains (who wins the close games, which underdog pulls it off) is consistent with irreducible randomness.
 
 # Appendix A. Reproducing the study
 
