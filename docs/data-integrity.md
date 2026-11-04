@@ -41,15 +41,38 @@ FBS-vs-FCS games are lopsided (the mean spread rises from 11.1 to 13.4) and easy
 
 On the 1,587 test games present in both datasets (`bug_impact.matched_test_rows`), the model trained on contaminated data scores a Brier of 0.176700, against 0.176726 for the clean model. The difference has a 95% CI of [−0.00017, +0.00013]. So the bug corrupts the evaluation and the base rates, not the fitted model's predictions on FBS games.
 
-## 2. Line rows with no matching game (expected, no fix)
+## 2. Look-ahead leakage from end-of-season SP+ ratings (prevented by design, impact measured)
+
+**Issue.** `/ratings/sp?year=Y` returns SP+ ratings computed after season Y ends, from season Y's own games. Using them as a pregame feature gives the model information about the outcomes it is predicting.
+
+**When it was caught.** During pipeline design, before any data was pulled. The pipeline has always used prior-season ratings (`sp_lag=1` in `etl.clean`), so no reported result was affected. Its impact was measured afterwards with a controlled rerun.
+
+**Measurement.** `run_study.py` `leakage_impact()` rebuilds the dataset with same-season ratings (`sp_lag=0`). Everything else stays the same: the train/test split and the seed. Both arms are scored on the same 3,857 games, the 3,900 minus the 43 that have no prior-season rating, so the spread-only Brier is identical in both (0.1768) and the whole gap comes from the rating feature.
+
+| Metric | Leaky (same-season SP+) | Clean (prior-season SP+) |
+|---|---|---|
+| H2 likelihood-ratio statistic (df 5) | 313.8 (p ≈ 10⁻⁶⁵) | 11.2 (p = 0.048) |
+| sp_diff logit coefficient, p | 0.136, p ≈ 10⁻⁵⁴ | −0.0095, p = 0.058 |
+| Full-model Brier (test) | 0.1514 | 0.1778 |
+| Full-model AUC (test) | 0.858 | 0.803 |
+| Brier skill vs naive, full model | 37.8% | 27.0% |
+| Brier(full) − Brier(spread), 95% CI | −0.0253 [−0.0321, −0.0189] | +0.0010 [−0.0010, +0.0028] |
+| Full model beats the spread out of sample? | **Yes** | **No** |
+| Multivariate OLS R² | 0.564 | 0.459 |
+
+**Effect.** The leak would have reversed the study's central conclusion. With end-of-season ratings, the full model appears to beat the betting market by 0.025 Brier, a 14% lower error, with a confidence interval well clear of zero. The study would have reported that public features predict upsets better than the market. With honest pregame ratings, that edge disappears completely. The leaky model's "skill" (37.8% against 27.0%) is information from the future.
+
+A test in `tests/test_etl.py` checks that the default uses prior-season ratings and that `sp_lag=0` uses same-season ratings.
+
+## 3. Line rows with no matching game (expected, no fix)
 
 `lines_games_without_game = 1,726`. `/lines` has no classification filter, so it returns lines for FCS-only and other games that `/games?classification=fbs` excludes. These rows never join to a kept game. No action is needed. The count is logged so that any change in it shows up.
 
-## 3. Null spreads (handled)
+## 4. Null spreads (handled)
 
 `lines_null_spread = 17` provider rows have no spread. They are left out of the per-game median. Every game still had at least one valid line (`no_valid_line_removed = 0`).
 
-## 4. Other checks (passed)
+## 5. Other checks (passed)
 
 - Duplicate game IDs: 0. Duplicate (game, provider) lines: 0.
 - Spreads that are non-numeric or larger than 70 points: 0.

@@ -8,7 +8,11 @@ Can college football upsets be predicted, or are they governed by irreducible ra
 
 The closing spread is a strong, unbiased and well-calibrated forecast. It scores a Brier of **0.177**, against **0.244** for a naive baseline, which is 27% better. Adding team-strength ratings, venue, conference, week and the over/under does not improve on it out of sample: the Brier difference is +0.001, with a 95% CI of [−0.001, +0.003]. A **10,000-trial Monte Carlo** shows that the 444 upsets observed in 2023–24, the 15.3-point residual standard deviation, and the market's Brier score all fall inside what pure chance around the market line would produce.
 
-Once the market has spoken, what remains is consistent with irreducible randomness. Along the way, the pipeline found an API filtering bug that silently added 13.1% non-FBS records. Left unfixed, it would have inflated the market's apparent skill by 4.7 percentage points and produced a false finding of miscalibration.
+Once the market has spoken, what remains is consistent with irreducible randomness.
+
+Two threats to validity were neutralized and their impact measured with controlled reruns:
+- **A look-ahead leak.** End-of-season team ratings used as pregame features would have reversed the central conclusion. They make the model appear to beat the market by 0.025 Brier, with a CI well below zero.
+- **An API filtering bug.** It silently added 13.1% non-FBS records, which would have inflated measured skill by 4.7 points and produced a false finding of miscalibration.
 
 # 1. Background
 
@@ -72,6 +76,21 @@ The fix validates both teams against `/teams/fbs` for each season, and a regress
 FBS-vs-FCS games are lopsided and easy to call. Including them makes the market look **4.7 points more skillful** than it really is between FBS opponents. It also understates the test-season upset rate, at 24.9% against the true 28.0%. And it pushes the calibration test below α = 0.05, so the study would have wrongly concluded that the market is miscalibrated.
 
 A matched comparison shows where the damage is. On the 1,587 FBS-vs-FBS test games present in both datasets, a model trained on the contaminated data predicts just as well as one trained on clean data. The Brier difference is −0.00003, with a 95% CI of [−0.00017, +0.00013]. **The bug corrupts the evaluation, not the model.** It changes which games are scored, and so it changes the conclusions drawn from the scores. Bugs like this are dangerous because the fitted model still looks fine.
+
+## 2.4 Look-ahead leakage and its measured impact
+
+The most consequential risk in this study was a look-ahead leak, not a corrupted record. The API's SP+ ratings for a season are computed after the season ends, from that season's own games. A model given those ratings as "pregame" features is partly told the results it is supposed to predict. The pipeline was designed from the start to use each team's prior-season rating, so no reported result is affected. To quantify what the leak would have done, the full analysis was rerun with same-season ratings. The split and seed were identical, and both arms were scored on the same 3,857 games, so only the rating's season changed.
+
+| Metric (test seasons unless noted) | Leaky: same-season SP+ | Clean: prior-season SP+ |
+|---|---|---|
+| H2 likelihood-ratio statistic (train, df 5) | 313.8 (p ≈ 10⁻⁶⁵) | 11.2 (p = 0.048) |
+| Full-model Brier | 0.151 | 0.178 |
+| Full-model AUC | 0.858 | 0.803 |
+| Brier skill vs naive, full model | 37.8% | 27.0% |
+| Brier(full) − Brier(spread), 95% CI | **−0.025** [−0.032, −0.019] | +0.001 [−0.001, +0.003] |
+| Does the full model beat the market? | **Yes** | **No** |
+
+With the leak, the study would have confidently concluded the opposite of the truth: that public features predict games 14% better than the betting market, with a confidence interval nowhere near zero. Every one of those gains is information from the future. With honest pregame ratings, the edge disappears. A unit test pins the prior-season default.
 
 # 3. Methods
 
@@ -190,7 +209,11 @@ The four hypotheses agree. The closing spread strongly predicts winners (H1), fo
 
 **Upsets are therefore not anomalies that a better model could foresee; they are the expected tail of a well-priced distribution.** With a 15-point standard deviation around the line, a 7-point underdog wins about 30% of the time, every season, by design. The 2024 season's 29% upset rate was not a sign that something had changed. It is within the simulated range.
 
-A methodological lesson matters as much as the result. The biggest threat to a valid conclusion was not the choice of model but a quiet data defect. A filter that returned 13% wrong records looked reasonable at every step and would have produced a confident, publishable and false finding of market miscalibration. Automated integrity checks against an independent source of truth, here the official FBS membership list, caught it.
+A methodological lesson matters as much as the result. The biggest threats to a valid conclusion came from the data, not from the choice of model:
+- **The look-ahead leak.** A rating that looks like a pregame feature but is computed from the season's results would have turned "the market cannot be beaten" into "our model beats the market by 14%". Avoiding it took a question asked before any code ran: *when was each feature knowable?*
+- **The filter bug.** A filter that returned 13% wrong records looked reasonable at every step and would have produced a false finding of market miscalibration. Automated integrity checks against an independent source of truth, the official FBS membership list, caught it.
+
+Both effects were measured with controlled reruns, so their impact is a number rather than a guess.
 
 # 7. Limitations
 

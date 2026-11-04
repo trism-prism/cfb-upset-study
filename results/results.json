@@ -109,6 +109,62 @@
     ],
     "trials": 10000
   },
+  "leakage_impact": {
+    "clean_prior_season_sp": {
+      "brier_diff_ci95": [
+        -0.0010205351473930792,
+        0.002824825201321939
+      ],
+      "brier_diff_full_minus_spread": 0.0010026496610626712,
+      "brier_skill_full_vs_naive": 0.2700466299886971,
+      "full_auc": 0.8029328146042197,
+      "full_beats_spread_out_of_sample": false,
+      "full_brier": 0.177765610854926,
+      "full_log_loss": 0.5251919523957197,
+      "h2_df": 5,
+      "h2_lr_stat": 11.164761794278547,
+      "h2_p": 0.04820935166185497,
+      "h4_full_r2": 0.45877577246297185,
+      "h4_spread_only_r2": 0.4569287913459662,
+      "n_bootstrap_clusters": 31,
+      "n_games": 3857,
+      "n_test": 1554,
+      "n_test_complete": 1554,
+      "n_train": 2303,
+      "sp_diff_logit_coef": -0.009521319735457187,
+      "sp_diff_logit_p": 0.05839695072254854,
+      "spread_only_brier": 0.17676296119386334
+    },
+    "clean_sp_diff_missing": 43,
+    "leaky_same_season_sp": {
+      "brier_diff_ci95": [
+        -0.03212508664968581,
+        -0.0188920648991102
+      ],
+      "brier_diff_full_minus_spread": -0.025291809591348385,
+      "brier_skill_full_vs_naive": 0.3780187459205365,
+      "full_auc": 0.8575762110102975,
+      "full_beats_spread_out_of_sample": true,
+      "full_brier": 0.15147115160251495,
+      "full_log_loss": 0.4610897616077627,
+      "h2_df": 5,
+      "h2_lr_stat": 313.84144932159234,
+      "h2_p": 1.0573632035557418e-65,
+      "h4_full_r2": 0.5642561902045087,
+      "h4_spread_only_r2": 0.4569287913459662,
+      "n_bootstrap_clusters": 31,
+      "n_games": 3857,
+      "n_test": 1554,
+      "n_test_complete": 1554,
+      "n_train": 2303,
+      "sp_diff_logit_coef": 0.13574889067806786,
+      "sp_diff_logit_p": 7.095452532944133e-55,
+      "spread_only_brier": 0.17676296119386334
+    },
+    "leaky_sp_diff_missing": 0,
+    "n_games_before_matching": 3900,
+    "n_games_dropped_by_matching": 43
+  },
   "models": {
     "evaluation": {
       "bootstrap_cluster_unit": "season-week",

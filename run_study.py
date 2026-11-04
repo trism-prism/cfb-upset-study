@@ -175,6 +175,60 @@ def bug_impact(seasons, test_seasons, seed, pipeline_df):
     }
 
 
+def leakage_summary(df, test_seasons, seed):
+    result = models.run_models(df, test_seasons, seed)
+    evaluation, sp_coef = result["evaluation"], result["h2"]["full_coefs"]["sp_diff"]
+    ci_low, ci_high = evaluation["brier_diff_ci95"]
+    return {
+        "n_games": len(df),
+        "n_train": result["n_train"],
+        "n_test": result["n_test"],
+        "h2_lr_stat": result["h2"]["lr_stat"],
+        "h2_df": result["h2"]["df"],
+        "h2_p": result["h2"]["p"],
+        "sp_diff_logit_coef": sp_coef["coef"],
+        "sp_diff_logit_p": sp_coef["p"],
+        "full_brier": evaluation["full"]["brier"],
+        "full_log_loss": evaluation["full"]["log_loss"],
+        "full_auc": evaluation["full"]["auc"],
+        "spread_only_brier": evaluation["spread_only"]["brier"],
+        "brier_diff_full_minus_spread": evaluation["brier_diff_full_minus_spread"],
+        "brier_diff_ci95": [ci_low, ci_high],
+        "n_bootstrap_clusters": evaluation["n_bootstrap_clusters"],
+        "brier_skill_full_vs_naive": evaluation["brier_skill_full_vs_naive"],
+        "h4_full_r2": result["h4"]["full_r2"],
+        "h4_spread_only_r2": result["h4"]["spread_only_r2"],
+        "n_test_complete": evaluation["n_test_complete"],
+        "full_beats_spread_out_of_sample": bool(ci_high < 0),
+    }
+
+
+def leakage_impact(seasons, test_seasons, seed, pipeline_df):
+    """Before/after of using same-season (end-of-season, outcome-contaminated) SP+ instead of prior-season."""
+    games_raw, lines_raw, fbs, sp_same = etl.fetch_raw(seasons, sp_lag=0)
+    leaky, leaky_audit = etl.clean(games_raw, lines_raw, fbs, sp_same, sp_lag=0)
+    # The two datasets must differ only in sp_diff (dtype-insensitive: parquet round-trip).
+    pd.testing.assert_frame_equal(
+        leaky.drop(columns="sp_diff").sort_values("game_id").reset_index(drop=True),
+        pipeline_df.drop(columns="sp_diff").sort_values("game_id").reset_index(drop=True),
+        check_dtype=False,
+    )
+    # Like-for-like: keep only games with sp_diff present in BOTH arms.
+    both = set(leaky.loc[leaky["sp_diff"].notna(), "game_id"]) & set(
+        pipeline_df.loc[pipeline_df["sp_diff"].notna(), "game_id"]
+    )
+    clean_arm = pipeline_df[pipeline_df["game_id"].isin(both)]
+    leaky_arm = leaky[leaky["game_id"].isin(both)]
+    return {
+        "n_games_before_matching": len(pipeline_df),
+        "n_games_dropped_by_matching": len(pipeline_df) - len(both),
+        "clean_sp_diff_missing": int(pipeline_df["sp_diff"].isna().sum()),
+        "leaky_sp_diff_missing": leaky_audit["sp_diff_missing"],
+        "clean_prior_season_sp": leakage_summary(clean_arm, test_seasons, seed),
+        "leaky_same_season_sp": leakage_summary(leaky_arm, test_seasons, seed),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seasons", default="2014-2019,2021-2024")
@@ -215,6 +269,7 @@ def main():
         "models": model_results,
         "simulation": sim_results,
         "bug_impact": bug_impact(seasons, model_results["test_seasons"], args.seed, df),
+        "leakage_impact": leakage_impact(seasons, model_results["test_seasons"], args.seed, df),
     }
     RESULTS_DIR.mkdir(exist_ok=True)
     (RESULTS_DIR / "results.json").write_text(json.dumps(results, indent=2, sort_keys=True), encoding="utf-8")
