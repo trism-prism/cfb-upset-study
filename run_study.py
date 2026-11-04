@@ -37,7 +37,7 @@ def plot_hist(ax, hist, observed, title, xlabel, hist_label="simulated"):
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("trials")
-    ax.legend()
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2)  # below the axes, clear of the bars
 
 
 def make_figures(df, results):
@@ -97,6 +97,84 @@ def make_figures(df, results):
     save(fig, "residuals.png")
 
 
+def spread_summary(df, test_seasons):
+    """Spread-only metrics on one dataset; Brier and calibration use ALL test rows (no complete-case drop)."""
+    train, test, _ = models.split(df, test_seasons)
+    logit = models.fit_spread_logit(train)
+    p_test = np.clip(models.predict_spread(logit, test), models.PROB_CLIP, 1 - models.PROB_CLIP)
+    y_test = test["home_win"].to_numpy(float)
+    naive = models.scores(y_test, np.full(len(test), train["home_win"].mean()))["brier"]
+    spread = models.scores(y_test, p_test)["brier"]
+    return {
+        "n_games": len(df),
+        "n_test": len(test),
+        "upset_rate_all_seasons": float(df["underdog_win"].mean()),
+        "upset_rate_test": float(test["underdog_win"].mean()),
+        "favorite_win_share_all_seasons": float(1 - df["underdog_win"].mean()),
+        "mean_abs_spread_all_seasons": float(df["spread_home"].abs().mean()),
+        "spread_logit_coef": float(logit.params["spread_home"]),
+        "spread_only_brier_all_test_rows": spread,
+        "naive_brier": naive,
+        "brier_skill_spread_vs_naive": 1 - spread / naive,
+        "ols_spread_only_resid_sd": float(np.sqrt(models.fit_spread_ols(train).mse_resid)),
+        "calibration_slope": float(models.calibration_fit(y_test, p_test).params[1]),
+        "hosmer_lemeshow_p": models.hosmer_lemeshow(y_test, p_test)[2],
+    }
+
+
+def matched_test_rows(buggy, fixed, test_seasons, seed):
+    """Score buggy-trained vs fixed-trained spread logits on the FBS-vs-FBS test games both datasets share."""
+    buggy_train, _, _ = models.split(buggy, test_seasons)
+    fixed_train, fixed_test, _ = models.split(fixed, test_seasons)
+    y = fixed_test["home_win"].to_numpy(float)
+    err = {}
+    for name, train in (("buggy", buggy_train), ("fixed", fixed_train)):
+        p = np.clip(models.predict_spread(models.fit_spread_logit(train), fixed_test),
+                    models.PROB_CLIP, 1 - models.PROB_CLIP)
+        err[name] = (p - y) ** 2
+    diff = err["buggy"] - err["fixed"]
+    boot, n_clusters = models.cluster_bootstrap_diff(
+        diff, zip(fixed_test["season"], fixed_test["week"]), 2000, seed
+    )
+    return {
+        "n_games": len(fixed_test),
+        "brier_buggy_model": float(err["buggy"].mean()),
+        "brier_fixed_model": float(err["fixed"].mean()),
+        "brier_diff_buggy_minus_fixed": float(diff.mean()),
+        "brier_diff_ci95": [float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))],
+        "n_bootstrap_clusters": n_clusters,
+        "bootstrap_cluster_unit": "season-week",
+    }
+
+
+def bug_impact(seasons, test_seasons, seed, pipeline_df):
+    """Before/after of trusting the API's classification=fbs filter (cached raw data, no network)."""
+    games_raw, lines_raw, fbs, sp = etl.fetch_raw(seasons)
+    fixed, audit = etl.clean(games_raw, lines_raw, fbs, sp)
+    assert set(fixed["game_id"]) == set(pipeline_df["game_id"]), "recomputed fixed dataset differs from pipeline data"
+    buggy, _ = etl.clean(games_raw, lines_raw, etl.teams_seen(games_raw), sp)
+    added = buggy.groupby("season").size().sub(fixed.groupby("season").size(), fill_value=0)
+    with_lines = {row["game_id"] for row in map(etl.game_row, games_raw)} & {
+        game.get("id") for game in lines_raw if game.get("lines")
+    }
+    leaked = sum(
+        1 for row in {r["game_id"]: r for r in map(etl.game_row, games_raw)}.values()
+        if not (row["home_team"] in fbs.get(row["season"], ()) and row["away_team"] in fbs.get(row["season"], ()))
+        and row["game_id"] in with_lines
+    )
+    return {
+        "api_filter_rows": audit["raw_game_rows"],
+        "leaked_rows": audit["non_fbs_leakage_removed"],
+        "leaked_share": audit["non_fbs_leakage_removed"] / audit["raw_game_rows"],
+        "leaked_with_lines": leaked,
+        "rows_added_to_dataset": len(buggy) - len(fixed),
+        "rows_added_by_season": {str(season): int(count) for season, count in added.items()},
+        "matched_test_rows": matched_test_rows(buggy, fixed, test_seasons, seed),
+        "buggy": spread_summary(buggy, test_seasons),
+        "fixed": spread_summary(fixed, test_seasons),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seasons", default="2014-2019,2021-2024")
@@ -136,6 +214,7 @@ def main():
         "audit": audit,
         "models": model_results,
         "simulation": sim_results,
+        "bug_impact": bug_impact(seasons, model_results["test_seasons"], args.seed, df),
     }
     RESULTS_DIR.mkdir(exist_ok=True)
     (RESULTS_DIR / "results.json").write_text(json.dumps(results, indent=2, sort_keys=True), encoding="utf-8")

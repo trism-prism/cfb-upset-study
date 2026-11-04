@@ -167,6 +167,14 @@ OUTPUT_COLUMNS = [
 ]
 
 
+def teams_seen(games_raw):
+    """Every team appearing in the games, per season. Passing this as fbs_by_season bypasses the FBS check."""
+    seen = {}
+    for row in map(game_row, games_raw):
+        seen.setdefault(row["season"], set()).update((row["home_team"], row["away_team"]))
+    return seen
+
+
 def team_name(row):
     return pick(row, "school", "team", "name")
 

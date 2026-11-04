@@ -85,6 +85,16 @@ def test_non_fbs_dropped_and_counted():
     assert audit["non_fbs_leakage_removed"] == 1
 
 
+def test_fbs_check_bypass_keeps_the_fcs_game():
+    games = [game(1, "A", "B"), game(2, "A", "Tiny U")]
+    raw_lines = [lines(1, -7), lines(2, -20)]
+    kept, audit = etl.clean(games, raw_lines, etl.teams_seen(games), SP)
+    assert sorted(kept["game_id"]) == [1, 2]
+    assert audit["non_fbs_leakage_removed"] == 0
+    normal, _ = etl.clean(games, raw_lines, FBS, SP)
+    assert list(normal["game_id"]) == [1]
+
+
 def test_pickem_excluded():
     frame, audit = run([game(1, "A", "B"), game(2, "C", "D")], [lines(1, 0), lines(2, -3)])
     assert list(frame.index) == [2]
