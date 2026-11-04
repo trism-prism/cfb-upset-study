@@ -1,0 +1,28 @@
+{
+  "duplicate_game_ids_removed": 0,
+  "duplicate_game_provider_lines_removed": 0,
+  "favorite_win_share": 0.7287179487179487,
+  "final_games": 3900,
+  "final_games_by_season": {
+    "2019": 771,
+    "2021": 769,
+    "2022": 773,
+    "2023": 789,
+    "2024": 798
+  },
+  "games_without_line_entry": 0,
+  "incomplete_or_missing_scores_removed": 1,
+  "lines_abs_spread_over_70": 0,
+  "lines_games_without_game": 1726,
+  "lines_nonnumeric_spread": 0,
+  "lines_null_spread": 17,
+  "neutral_site_games": 316,
+  "no_valid_line_removed": 0,
+  "non_fbs_leakage_removed": 590,
+  "pickem_excluded": 10,
+  "raw_game_rows": 4501,
+  "raw_line_rows": 17601,
+  "sign_check": "ok",
+  "sp_diff_missing": 43,
+  "valid_line_rows": 17584
+}

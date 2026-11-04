@@ -42,6 +42,15 @@ def test_cluster_bootstrap_reports_clusters_and_resamples_whole_clusters():
     assert draws.min() >= 0 and draws.max() <= 5  # means of the per-game diffs
 
 
+def test_calibration_slope_near_one_for_true_probabilities():
+    rng = np.random.default_rng(11)
+    p = rng.uniform(0.05, 0.95, 5000)
+    y = (rng.random(5000) < p).astype(float)
+    fit = models.calibration_fit(y, p)
+    assert abs(fit.params[1] - 1) < 0.1
+    assert abs(fit.params[0]) < 0.1
+
+
 def synthetic(n=2000, seed=7):
     rng = np.random.default_rng(seed)
     spread = np.round(rng.normal(0, 10, n) * 2) / 2
@@ -75,6 +84,7 @@ def test_end_to_end_on_synthetic_data():
     assert len(results["evaluation"]["brier_diff_ci95"]) == 2
     assert results["evaluation"]["n_bootstrap_clusters"] == 26  # 2 seasons x 13 weeks
     assert results["evaluation"]["complete_case"]["n_test_all"] == 800
+    assert [row["bucket"] for row in results["upset_by_spread_bucket"]] == models.SPREAD_LABELS
 
     sim = simulate.simulate(df, results["test_seasons"], seed=1, n_trials=500)
     for key in ("bernoulli", "normal_margin", "oracle_brier", "hist"):

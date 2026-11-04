@@ -45,6 +45,12 @@ def fit_spread_logit(train):
     return fit_logit(train["home_win"].astype(float), design(train, ["spread_home"]), "spread-only")
 
 
+def calibration_fit(y, p):
+    """Logistic regression of outcome on logit(p): params[0] = intercept, params[1] = slope."""
+    link = np.log(p / (1 - p))
+    return fit_logit(y, sm.add_constant(link, has_constant="add"), "H3 calibration")
+
+
 def cluster_bootstrap_diff(diff, cluster_ids, n_boot, seed):
     """Bootstrap mean of per-game diff, resampling whole clusters. Returns (draws, n_clusters)."""
     codes, uniques = pd.factorize(pd.Series(list(cluster_ids)))
@@ -128,8 +134,7 @@ def run_models(df, test_seasons=None, seed=42, n_boot=2000):
     # H3 calibration of spread-only probabilities on test
     p_test = np.clip(predict_spread(logit, test), PROB_CLIP, 1 - PROB_CLIP)
     y_test = test["home_win"].to_numpy(float)
-    link = np.log(p_test / (1 - p_test))
-    calib = fit_logit(y_test, sm.add_constant(link), "H3 calibration")
+    calib = calibration_fit(y_test, p_test)
     hl_stat, hl_df, hl_p = hosmer_lemeshow(y_test, p_test)
     out["h3"] = {
         "n_rows": len(test),
@@ -203,7 +208,7 @@ def run_models(df, test_seasons=None, seed=42, n_boot=2000):
     fav_win_p = np.where(test["fav_is_home"], p_test, 1 - p_test)
     bucket = pd.cut(test["spread_home"].abs(), SPREAD_BUCKETS, labels=SPREAD_LABELS, right=False)
     table = pd.DataFrame({
-        "bucket": bucket.to_numpy(), "upset": test["underdog_win"].to_numpy(), "pred": 1 - fav_win_p
+        "bucket": pd.Categorical(bucket, categories=SPREAD_LABELS, ordered=True), "upset": test["underdog_win"].to_numpy(), "pred": 1 - fav_win_p
     })
     out["upset_by_spread_bucket"] = [
         {

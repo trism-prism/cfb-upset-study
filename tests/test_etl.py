@@ -59,6 +59,32 @@ def test_build_raises_on_suspect_sign_but_writes_audit(tmp_path, monkeypatch):
     assert (tmp_path / "audit.json").exists()
 
 
+def test_sp_lag_selects_same_or_prior_season_ratings():
+    sp = {2022: {"A": 10.0, "B": 4.0}, 2023: {"A": 30.0, "B": 5.0}}
+    games, raw_lines = [game(1, "A", "B")], [lines(1, -7)]
+    prior, _ = etl.clean(games, raw_lines, FBS, sp)
+    same, _ = etl.clean(games, raw_lines, FBS, sp, sp_lag=0)
+    assert prior.iloc[0].sp_diff == 6.0   # 2022 ratings
+    assert same.iloc[0].sp_diff == 25.0   # 2023 ratings (leaky)
+
+
+def test_fetch_raw_requests_ratings_for_the_lagged_year(monkeypatch):
+    requested = []
+
+    def fake_get(endpoint, **params):
+        if endpoint == "/ratings/sp":
+            requested.append(params["year"])
+            return [{"team": "A", "rating": 1.0}]
+        return []
+
+    monkeypatch.setattr(etl.api, "get", fake_get)
+    etl.fetch_raw([2023], sp_lag=0)
+    assert requested == [2023]
+    requested.clear()
+    etl.fetch_raw([2023])
+    assert requested == [2022]
+
+
 def test_upset_when_underdog_wins():
     frame, _ = run([game(1, "A", "B", home_points=10, away_points=20)], [lines(1, -7)])
     assert frame.loc[1].underdog_win == 1
@@ -83,6 +109,16 @@ def test_non_fbs_dropped_and_counted():
     frame, audit = run([game(1, "A", "B"), game(2, "A", "Tiny U")], [lines(1, -7), lines(2, -20)])
     assert list(frame.index) == [1]
     assert audit["non_fbs_leakage_removed"] == 1
+
+
+def test_fbs_check_bypass_keeps_the_fcs_game():
+    games = [game(1, "A", "B"), game(2, "A", "Tiny U")]
+    raw_lines = [lines(1, -7), lines(2, -20)]
+    kept, audit = etl.clean(games, raw_lines, etl.teams_seen(games), SP)
+    assert sorted(kept["game_id"]) == [1, 2]
+    assert audit["non_fbs_leakage_removed"] == 0
+    normal, _ = etl.clean(games, raw_lines, FBS, SP)
+    assert list(normal["game_id"]) == [1]
 
 
 def test_pickem_excluded():

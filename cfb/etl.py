@@ -79,8 +79,11 @@ def line_rows(lines_raw):
     return frame, line_game_ids
 
 
-def clean(games_raw, lines_raw, fbs_by_season, sp_by_season):
+def clean(games_raw, lines_raw, fbs_by_season, sp_by_season, sp_lag=1):
     """Pure cleaning. fbs_by_season: {season: set(team)}; sp_by_season: {season: {team: rating}}.
+
+    sp_lag=1 (default) uses the prior season's SP+ (pregame-safe); sp_lag=0 uses the same season's
+    end-of-season SP+, which leaks the outcomes (only for the leakage-impact measurement).
 
     Returns (DataFrame, audit dict). Only the explicit rules below remove rows.
     """
@@ -139,7 +142,7 @@ def clean(games_raw, lines_raw, fbs_by_season, sp_by_season):
     games["n_providers"] = games["n_providers"].astype(int)
 
     def prior_rating(row, side):
-        return sp_by_season.get(row.season - 1, {}).get(getattr(row, side), math.nan)
+        return sp_by_season.get(row.season - sp_lag, {}).get(getattr(row, side), math.nan)
 
     games["sp_diff"] = [
         prior_rating(row, "home_team") - prior_rating(row, "away_team") for row in games.itertuples()
@@ -167,11 +170,19 @@ OUTPUT_COLUMNS = [
 ]
 
 
+def teams_seen(games_raw):
+    """Every team appearing in the games, per season. Passing this as fbs_by_season bypasses the FBS check."""
+    seen = {}
+    for row in map(game_row, games_raw):
+        seen.setdefault(row["season"], set()).update((row["home_team"], row["away_team"]))
+    return seen
+
+
 def team_name(row):
     return pick(row, "school", "team", "name")
 
 
-def fetch_raw(seasons, with_sp=True):
+def fetch_raw(seasons, with_sp=True, sp_lag=1):
     """Pull raw lists from the API (or disk cache). SP+ is fetched for season-1 of each season."""
     games_raw, lines_raw, fbs, sp = [], [], {}, {}
     for year in seasons:
@@ -180,7 +191,7 @@ def fetch_raw(seasons, with_sp=True):
             lines_raw += api.get("/lines", year=year, seasonType=season_type)
         fbs[year] = {team_name(team) for team in api.get("/teams/fbs", year=year)}
     if with_sp:
-        for year in {season - 1 for season in seasons}:
+        for year in {season - sp_lag for season in seasons}:
             sp[year] = {
                 row.get("team"): to_float(row.get("rating"))
                 for row in api.get("/ratings/sp", year=year)
