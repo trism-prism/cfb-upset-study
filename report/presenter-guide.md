@@ -110,6 +110,6 @@ Data validity, not modeling. The two biggest threats came from the data. The loo
 
 - Open the deck in PowerPoint and click through once. Fonts are Cambria and Calibri, which ship with Office.
 - Check Presenter View shows the notes.
-- Have `report.pdf` ready to share, and know the repository name (trism-dev/cfb-upset-study, private; grant access if asked).
+- Have `report.pdf` ready to share, and know the repository name (trism-prism/cfb-upset-study, private; grant access if asked).
 - Rehearse once aloud with a timer; the main deck targets about 22 minutes.
 - Resume bullet 4 says you "presented results". Use that bullet once this talk has been given.

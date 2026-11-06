@@ -780,7 +780,7 @@ async function main() {
       `That's the study. To recap in one sentence: the closing spread captures nearly all the predictive signal in public data, and what remains is consistent with irreducible randomness. The code, the audit log and every number are in the repository, and the backup slides after this one cover the full coefficient tables, the Monte Carlo and the two controlled reruns in detail, the reproducibility commands, and answers to the questions I expect. I'm happy to take questions now.`, 0.5));
     s.addText("Questions", { placeholder: "title" });
     s.addText("Thank you", { placeholder: "subtitle" });
-    s.addText([{ text: "Tristan Morton", options: { breakLine: true } }, { text: "Repository: trism-dev/cfb-upset-study (private)" }], { placeholder: "meta" });
+    s.addText([{ text: "Tristan Morton", options: { breakLine: true } }, { text: "Repository: trism-prism/cfb-upset-study (private)" }], { placeholder: "meta" });
     chip(s, 9.0, 1.7, 3.9, "?", { fill: C.accent2, color: C.text1, size: 120, name: "Motif circle" });
   }
 
